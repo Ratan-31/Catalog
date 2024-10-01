@@ -1,0 +1,86 @@
+import java.io.*;
+import java.math.BigInteger;
+import java.util.*;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+
+public class ShamirSecretSharing {
+    
+    // Function to decode y values from a given base
+    private static BigInteger decodeValue(int base, String value) {
+        return new BigInteger(value, base);
+    }
+
+    // Lagrange interpolation function to find the constant term
+    private static BigInteger lagrangeInterpolation(List<int[]> points, int k) {
+        BigInteger secret = BigInteger.ZERO;
+
+        for (int i = 0; i < k; i++) {
+            BigInteger numerator = BigInteger.ONE;
+            BigInteger denominator = BigInteger.ONE;
+
+            for (int j = 0; j < k; j++) {
+                if (i != j) {
+                    // (0 - x_j) / (x_i - x_j)
+                    numerator = numerator.multiply(BigInteger.ZERO.subtract(BigInteger.valueOf(points.get(j)[0])));
+                    denominator = denominator.multiply(BigInteger.valueOf(points.get(i)[0] - points.get(j)[0]));
+                }
+            }
+
+            // Add y_i * (numerator / denominator)
+            BigInteger term = BigInteger.valueOf(points.get(i)[1])
+                    .multiply(numerator)
+                    .divide(denominator);
+            secret = secret.add(term);
+        }
+
+        return secret;
+    }
+
+    // Function to read JSON and find the secret (c)
+    public static BigInteger findSecret(String jsonFile) {
+        JSONParser parser = new JSONParser();
+        List<int[]> points = new ArrayList<>();
+        int n = 0;
+        int k = 0;
+
+        try (FileReader reader = new FileReader(jsonFile)) {
+            // Parse the JSON file
+            JSONObject jsonObject = (JSONObject) parser.parse(reader);
+            JSONObject keys = (JSONObject) jsonObject.get("keys");
+
+            n = Integer.parseInt(keys.get("n").toString());
+            k = Integer.parseInt(keys.get("k").toString());
+
+            // Read and decode the points
+            for (int i = 1; i <= n; i++) {
+                if (jsonObject.containsKey(String.valueOf(i))) {
+                    JSONObject point = (JSONObject) jsonObject.get(String.valueOf(i));
+                    int base = Integer.parseInt(point.get("base").toString());
+                    String value = point.get("value").toString();
+
+                    // Decode the y value
+                    BigInteger y = decodeValue(base, value);
+                    points.add(new int[]{i, y.intValue()});
+                }
+            }
+
+        } catch (IOException | ParseException e) {
+            e.printStackTrace();
+        }
+
+        // Use Lagrange interpolation to find the secret
+        return lagrangeInterpolation(points, k);
+    }
+
+    public static void main(String[] args) {
+        // Test case 1
+        BigInteger secret1 = findSecret("testcase1.json");
+        System.out.println("Secret for the first test case: " + secret1);
+
+        // Test case 2
+        BigInteger secret2 = findSecret("testcase2.json");
+        System.out.println("Secret for the second test case: " + secret2);
+    }
+}
